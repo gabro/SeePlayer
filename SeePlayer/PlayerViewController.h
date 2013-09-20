@@ -7,7 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "PlayerPageViewController.h"
 
-@interface PlayerViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate, UIPageViewControllerDelegate>
+@interface PlayerViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate, PlayerPageViewControllerDelegate>
 
 @end

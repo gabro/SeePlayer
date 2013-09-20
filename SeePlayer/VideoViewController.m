@@ -28,10 +28,10 @@
     
     [self.view addSubview:backgroundView];
     
-    DRNRealTimeBlurView * blurOverlay = [[DRNRealTimeBlurView alloc] initWithFrame:rect];
-    blurOverlay.layer.cornerRadius = 0;
-    blurOverlay.renderStatic = YES;
-    [self.view addSubview:blurOverlay];
+//    DRNRealTimeBlurView * blurOverlay = [[DRNRealTimeBlurView alloc] initWithFrame:rect];
+//    blurOverlay.layer.cornerRadius = 0;
+//    blurOverlay.renderStatic = YES;
+//    [self.view addSubview:blurOverlay];
 }
 
 @end

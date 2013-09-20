@@ -11,6 +11,7 @@
 #import "SSTimelineCell.h"
 #import "SSAvatarView.h"
 #import "VideoViewController.h"
+#import <ios-realtimeblur/DRNRealTimeBlurView.h>
 
 typedef enum _PlayerModes {
     SSPlayerModePlayback = 0,
@@ -23,6 +24,8 @@ typedef enum _PlayerModes {
 @property (nonatomic, strong) NSArray * avatars;
 @property (weak, nonatomic) IBOutlet NSLayoutConstraint *verticalCenterConstraint;
 @property (nonatomic, assign) SSPlayerMode mode;
+@property (nonatomic, weak) PlayerPageViewController * pageViewController;
+@property (nonatomic, strong) UIView * backgroundOverlay;
 @end
 
 @implementation PlayerViewController
@@ -45,6 +48,12 @@ typedef enum _PlayerModes {
     self.timeline.collectionViewLayout = [SSTimelineLayout new];
 }
 
+-(void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+    if ([segue.identifier isEqualToString:@"PageControllerEmbed"]) {
+        self.pageViewController = segue.destinationViewController;
+        self.pageViewController.playerPageDelegate = self;
+    }
+}
 - (NSInteger)numberOfSectionsInCollectionView:(UICollectionView *)collectionView {
     return 1;
 }
@@ -67,8 +76,35 @@ typedef enum _PlayerModes {
     return cell;
 }
 
+- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
+    [collectionView scrollToItemAtIndexPath:indexPath atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally animated:YES];
+    [self.pageViewController scrollToPage:indexPath.item];
+}
+
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    [self handleEndScrolling:scrollView shouldScrollToPage:YES];
+}
+
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView {
+    [self handleEndScrolling:scrollView shouldScrollToPage:NO];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        [self handleEndScrolling:scrollView shouldScrollToPage:YES];
+    }
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
     if ([scrollView isKindOfClass:[UICollectionView class]]) {
+        self.pageViewController.view.userInteractionEnabled = NO;
+        [self dimBackground];
+    }
+}
+
+- (void)handleEndScrolling:(UIScrollView *)scrollView shouldScrollToPage:(BOOL)shouldScrollToPage {
+    if ([scrollView isKindOfClass:[UICollectionView class]]) {
+        self.pageViewController.view.userInteractionEnabled = YES;
         UICollectionView * collectionView = (UICollectionView *)scrollView;
         
         for (SSTimelineCell * visibleCell in collectionView.visibleCells) {
@@ -79,16 +115,35 @@ typedef enum _PlayerModes {
         NSIndexPath * centerIndexPath = [collectionView indexPathForItemAtPoint:[collectionView convertPoint:collectionView.center fromView:collectionView.superview]];
         SSTimelineCell * cell = (SSTimelineCell *)[collectionView cellForItemAtIndexPath:centerIndexPath];
         cell.avatarView.indefinite = YES;
+        
+        if (shouldScrollToPage) {
+            [self.pageViewController scrollToPage:centerIndexPath.item triggeredByUser:NO completion:^(BOOL finished) {
+                [self undimBackground];
+            }];
+        } else {
+            [self undimBackground];
+        }
     }
 }
 
-- (void)pageViewController:(UIPageViewController *)pageViewController willTransitionToViewControllers:(NSArray *)pendingViewControllers {
-    VideoViewController * newVideoVC = pendingViewControllers[0];
-    VideoViewController * currentVideoVC = pageViewController.viewControllers[0];
-    NSIndexPath * centerIndexPath = [self centerIndexPathForTimeline:self.timeline];
-    NSInteger item = newVideoVC.index > currentVideoVC.index ? centerIndexPath.item + 1 : centerIndexPath.item - 1;
-    NSIndexPath * newCenterIndexPath = [NSIndexPath indexPathForItem:item inSection:0];
-    [self.timeline scrollToItemAtIndexPath:newCenterIndexPath atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally animated:YES];
+- (void)dimBackground {
+    if (self.backgroundOverlay == nil) {
+        self.backgroundOverlay = [[UIView alloc] initWithFrame:self.pageViewController.view.bounds];
+        self.backgroundOverlay.backgroundColor = [UIColor blackColor];
+    }
+    self.backgroundOverlay.alpha = 0.0;
+    [self.pageViewController.view addSubview:self.backgroundOverlay];
+    [UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+        self.backgroundOverlay.alpha = 0.5;
+    } completion:nil];
+}
+
+- (void)undimBackground {
+    [UIView animateWithDuration:0.5 animations:^{
+        self.backgroundOverlay.alpha = 0.0;
+    } completion:^(BOOL finished) {
+        [self.backgroundOverlay removeFromSuperview];
+    }];
 }
 
 - (void)setMode:(SSPlayerMode)mode {
@@ -106,6 +161,34 @@ typedef enum _PlayerModes {
             self.timeline.userInteractionEnabled = YES;
             break;
     }
+}
+
+- (void)playerPageviewControllerDidEndScrolling:(PlayerPageViewController *)pageViewController {
+    [self.timeline scrollToItemAtIndexPath:[self centerIndexPathForTimeline:self.timeline] atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally animated:YES];
+}
+
+- (void)playerPageViewController:(PlayerPageViewController *)pageViewController didScrollFromViewController:(UIViewController *)fromViewController atPage:(NSInteger)fromPage toViewController:(UIViewController *)toViewController atPage:(NSInteger)toPage withRatio:(CGFloat)ratio {
+    BOOL forward = toPage > fromPage;
+    CGFloat itemWidth = [(SSTimelineLayout *)self.timeline.collectionViewLayout itemSize].width;
+    CGFloat spacing = [(SSTimelineLayout *)self.timeline.collectionViewLayout minimumLineSpacing];
+    CGFloat zoomFactor = [(SSTimelineLayout *)self.timeline.collectionViewLayout zoomFactor];
+    CGFloat distanceX = itemWidth + spacing;
+    CGFloat adjustedDistance = distanceX - (itemWidth * zoomFactor) / 4;
+    CGFloat offsetX;
+    if (forward) {
+        offsetX = fromPage * distanceX + ratio * adjustedDistance;
+    } else {
+        offsetX = toPage * distanceX + (1 - ratio) * adjustedDistance - itemWidth * zoomFactor / 4;
+    }
+    [self.timeline setContentOffset:(CGPoint){ offsetX, self.timeline.contentOffset.y } animated:NO];
+}
+
+- (IBAction)prevPage {
+    [self.pageViewController scrollToPreviousPageTriggeredByUser:YES];
+}
+
+- (IBAction)nextPage {
+    [self.pageViewController scrollToNextPageTriggeredByUser:YES];
 }
 
 - (IBAction)handleButton:(id)sender {
