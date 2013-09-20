@@ -8,6 +8,6 @@
 
 #import <UIKit/UIKit.h>
 
-@interface PlayerPageViewController : UIPageViewController <UIPageViewControllerDataSource, UIPageViewControllerDataSource>
+@interface PlayerPageViewController : UIPageViewController <UIPageViewControllerDataSource>
 
 @end

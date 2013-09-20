@@ -10,4 +10,6 @@
 
 @interface VideoViewController : UIViewController
 
+@property (nonatomic, assign) NSUInteger index;
+
 @end

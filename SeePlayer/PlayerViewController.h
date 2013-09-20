@@ -8,6 +8,6 @@
 
 #import <UIKit/UIKit.h>
 
-@interface PlayerViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate>
+@interface PlayerViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate, UIPageViewControllerDelegate>
 
 @end
